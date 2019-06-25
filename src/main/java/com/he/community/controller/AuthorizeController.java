@@ -1,10 +1,11 @@
 package com.he.community.controller;
 
-import com.he.community.controller.dto.AccessTokenDTO;
-import com.he.community.controller.dto.GithubUser;
-import com.he.community.controller.mapper.UserMapper;
-import com.he.community.controller.provider.GithubProvider;
+import com.he.community.dto.AccessTokenDTO;
+import com.he.community.dto.GithubUser;
+import com.he.community.mapper.UserMapper;
 import com.he.community.model.User;
+import com.he.community.provider.GithubProvider;
+import com.he.community.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.UUID;
 
@@ -31,9 +33,13 @@ public class AuthorizeController {
     @Autowired
     private UserMapper userMapper;
 
+    @Autowired
+    private UserService userService;
+
     @GetMapping("/callback")
     public String callback(@RequestParam(name = "code") String code, @RequestParam(name = "state") String state,
                             HttpServletResponse response){
+
         AccessTokenDTO accessTokenDTO = new AccessTokenDTO();
         accessTokenDTO.setCode(code);
         accessTokenDTO.setClient_id(ClientId);
@@ -44,18 +50,21 @@ public class AuthorizeController {
         GithubUser  githubuser = githubprovider.getUser(accessToken);
         if(githubuser != null){
             /*System.out.println(githubuser.getName());*/
+
             User user = new User();
             String token = UUID.randomUUID().toString();
             user.setToken(token);
             user.setName(githubuser.getName());
-            user.setAcountId(String.valueOf(githubuser.getId()));
-            user.setGmtCreate(System.currentTimeMillis());
-            user.setGmtModified(user.getGmtCreate());
-            userMapper.insert(user);
 
-/*            String a = "2";*/
+            user.setAccountId(String.valueOf(githubuser.getId()));
+            user.setAvatarUrl(githubuser.getAvatarUrl());
+            /*System.out.println(token);*/
+            userService.createOrUpdate(user);
+
+            /*String a = "2";*/
             response.addCookie(new Cookie("token",token));
-/*            response.addCookie(new Cookie("a",a));*/
+
+            /*response.addCookie(new Cookie("a",a));*/
             /*登录成功，写Cookie以及Session*//*
             request.getSession().setAttribute("githubuser", githubuser);*/
             return "redirect:/";
@@ -64,6 +73,16 @@ public class AuthorizeController {
             return "redirect:/";
         }
 /*        return "index";*/
+    }
+
+    @GetMapping("/logout")
+    public String logout(HttpServletRequest request,
+                         HttpServletResponse response){
+        request.getSession().removeAttribute("user");
+        Cookie cookie = new Cookie("token",null);
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+        return "redirect:/";
     }
 
 }
